@@ -6,3 +6,20 @@ body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
 }
+
+/* FullCalendar - Month/Year title white */
+.fc-toolbar-title {
+  color: white !important;
+}
+
+/* FullCalendar - Day numbers white */
+.fc-daygrid-day-number {
+  color: white !important;
+}
+
+/* FullCalendar - Event text white */
+.fc-event,
+.fc-event-title,
+.fc-event-main {
+  color: white !important;
+}
