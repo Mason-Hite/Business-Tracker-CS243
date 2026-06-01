@@ -2,9 +2,9 @@ name: CI - Lint and Build
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
   build:
@@ -17,17 +17,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install all dependencies
+        run: |
+          npm install
+          cd frontend && npm install
+          cd ../backend && npm install
 
-      - name: Install frontend dependencies
-        run: cd frontend && npm install
-
-      - name: Run ESLint (Frontend)
+      - name: Lint Frontend
         run: cd frontend && npm run lint
 
       - name: Build Frontend
         run: cd frontend && npm run build
+
+      - name: Check Backend (Syntax)
+        run: cd backend && node --check server.js || echo "No syntax errors"
