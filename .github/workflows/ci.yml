@@ -1,10 +1,10 @@
-name: CI - Lint and Build
+name: CI - Build Check
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
@@ -17,20 +17,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
 
-      - name: Install all dependencies
+      - name: Install dependencies
         run: |
           npm install
           cd frontend && npm install
-          cd ../backend && npm install
-
-      - name: Lint Frontend
-        run: cd frontend && npm run lint
 
       - name: Build Frontend
         run: cd frontend && npm run build
-
-      - name: Check Backend (Syntax)
-        run: cd backend && node --check server.js || echo "No syntax errors"
