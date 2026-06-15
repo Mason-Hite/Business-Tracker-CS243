@@ -5,3 +5,10 @@ build/
 *.log
 .DS_Store
 mysql_data/
+
+# SQLite database files
+backend/data/
+*.db
+
+# Backup files
+*.backup
