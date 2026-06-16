@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink } from 'react-router-dom';
 
 import Login from './pages/Login.jsx';
@@ -25,20 +25,20 @@ export default function App() {
     { path: '/calendar', label: 'Calendar', icon: '📅' },
   ];
 
-  // Handle login
   const handleLogin = (newToken) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
   };
 
-  // Handle logout
   const handleLogout = () => {
     localStorage.removeItem('token');
     setToken(null);
     setIsChatOpen(false);
   };
 
-  // Send message to AI
+  // Dynamic API URL (works for both local and Railway)
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   const sendMessage = async () => {
     if (!input.trim() || !token) return;
 
@@ -48,7 +48,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/chat', {
+      const res = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -72,7 +72,7 @@ export default function App() {
     }
   };
 
-  // If not logged in, show Login page
+  // Show Login page if not logged in
   if (!token) {
     return <Login onLogin={handleLogin} />;
   }
