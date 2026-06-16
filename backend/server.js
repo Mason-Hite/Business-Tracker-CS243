@@ -198,33 +198,76 @@ const tools = [
 
 // Helper
 function getDateRangeForPeriod(period) {
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  let startDate, endDate;
+  // Get today's date in Pacific Time
+  const options = { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' };
+  const formatter = new Intl.DateTimeFormat('en-CA', options);
+  const todayStr = formatter.format(new Date());
+
+  // Parse it back into a Date object for calculations
+  const [yyyy, mm, dd] = todayStr.split('-').map(Number);
+  const today = new Date(yyyy, mm - 1, dd);
+
+  let startDate;
+  let endDate = todayStr;
 
   switch (period.toLowerCase()) {
-    case 'today': startDate = endDate = todayStr; break;
+    case 'today':
+      startDate = todayStr;
+      break;
+
     case 'yesterday':
-      const y = new Date(today); y.setDate(y.getDate() - 1);
-      startDate = endDate = y.toISOString().split('T')[0]; break;
+      const yest = new Date(today);
+      yest.setDate(yest.getDate() - 1);
+      startDate = endDate = yest.toISOString().split('T')[0];
+      break;
+
     case 'this_week':
-      const sw = new Date(today); sw.setDate(today.getDate() - today.getDay());
-      startDate = sw.toISOString().split('T')[0]; endDate = todayStr; break;
+      // Start from Sunday of current week
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      startDate = startOfWeek.toISOString().split('T')[0];
+      endDate = todayStr; // ← Force end date to today
+      break;
+
     case 'last_week':
-      const lwEnd = new Date(today); lwEnd.setDate(today.getDate() - today.getDay() - 1);
-      const lwStart = new Date(lwEnd); lwStart.setDate(lwEnd.getDate() - 6);
-      startDate = lwStart.toISOString().split('T')[0]; endDate = lwEnd.toISOString().split('T')[0]; break;
-    case 'this_month': startDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`; endDate = todayStr; break;
+      const lastWeekEnd = new Date(today);
+      lastWeekEnd.setDate(today.getDate() - today.getDay() - 1);
+      const lastWeekStart = new Date(lastWeekEnd);
+      lastWeekStart.setDate(lastWeekEnd.getDate() - 6);
+      startDate = lastWeekStart.toISOString().split('T')[0];
+      endDate = lastWeekEnd.toISOString().split('T')[0];
+      break;
+
+    case 'this_month':
+      startDate = `${yyyy}-${mm}-01`;
+      endDate = todayStr;
+      break;
+
     case 'last_month':
-      const lm = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      const lmEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-      startDate = lm.toISOString().split('T')[0]; endDate = lmEnd.toISOString().split('T')[0]; break;
+      const lastMonth = new Date(yyyy, today.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(yyyy, today.getMonth(), 0);
+      startDate = lastMonth.toISOString().split('T')[0];
+      endDate = lastMonthEnd.toISOString().split('T')[0];
+      break;
+
     case 'last_7_days':
-      const d7 = new Date(today); d7.setDate(today.getDate() - 6); startDate = d7.toISOString().split('T')[0]; endDate = todayStr; break;
+      const seven = new Date(today);
+      seven.setDate(today.getDate() - 6);
+      startDate = seven.toISOString().split('T')[0];
+      endDate = todayStr;
+      break;
+
     case 'last_30_days':
-      const d30 = new Date(today); d30.setDate(today.getDate() - 29); startDate = d30.toISOString().split('T')[0]; endDate = todayStr; break;
-    default: startDate = endDate = todayStr;
+      const thirty = new Date(today);
+      thirty.setDate(today.getDate() - 29);
+      startDate = thirty.toISOString().split('T')[0];
+      endDate = todayStr;
+      break;
+
+    default:
+      startDate = todayStr;
   }
+
   return { startDate, endDate };
 }
 
@@ -238,7 +281,18 @@ async function getOverallProfit() {
 }
 
 async function getCurrentDate() {
-  return { current_date: new Date().toISOString().split('T')[0] };
+  // Force Pacific Time (America/Los_Angeles)
+  const options = {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  };
+
+  const formatter = new Intl.DateTimeFormat('en-CA', options); // en-CA gives YYYY-MM-DD format
+  const todayStr = formatter.format(new Date());
+
+  return { current_date: todayStr };
 }
 
 async function getExpensesToday() {
@@ -338,15 +392,13 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { message, history = [] } = req.body;
 
-    const systemPrompt = `You are LandTrack AI, a helpful assistant for a landscaping business.
+    const systemPrompt = `You are LandTrack AI, a precise assistant for a landscaping business.
 
-Use the tools to answer questions accurately.
-
-PREFERRED:
-- Use get_expenses_for_period, get_revenues_for_period or get_profit_for_period for time-based questions (today, this_week, this_month, etc.).
-- Use get_business_overview for general questions.
-- You can perform calculations using numbers returned by tools.
-- Always mention the time period in your answer.`;
+When answering time-based questions:
+- Always use the start_date and end_date returned by the tool.
+- Clearly state the date range in your answer (e.g. "June 9 - June 15, 2026").
+- Never invent or adjust dates yourself.
+- For "this week", the end date should always be today.`;
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
