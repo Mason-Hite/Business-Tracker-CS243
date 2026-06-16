@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../utils/api';
 
 const Revenue = () => {
     const [revenues, setRevenues] = useState([]);
@@ -13,26 +14,33 @@ const Revenue = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const fetchRevenues = async (clientFilter = filterClient) => {
+    const fetchRevenues = async (clientFilter = 'All') => {
         try {
             const url = clientFilter && clientFilter !== 'All'
-                ? `http://localhost:5000/api/revenue?client_name=${encodeURIComponent(clientFilter)}`
-                : 'http://localhost:5000/api/revenue';
-            const res = await fetch(url);
+                ? `/revenue?client_name=${encodeURIComponent(clientFilter)}`
+                : '/revenue';
+
+            const res = await authFetch(url);
             const data = await res.json();
-            setRevenues(data);
+            setRevenues(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error('Failed to fetch revenues:', err);
+            setRevenues([]);
         }
     };
 
     useEffect(() => {
-        fetchRevenues();
-    }, []);
+        fetchRevenues(filterClient);
+    }, [filterClient]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleFilterChange = (e) => {
+        const newFilter = e.target.value.trim() || 'All';
+        setFilterClient(newFilter);
     };
 
     const handleSubmit = async (e) => {
@@ -41,19 +49,20 @@ const Revenue = () => {
             setErrorMessage('Client name and valid amount are required');
             return;
         }
+
         setLoading(true);
         setErrorMessage('');
         setSuccessMessage('');
 
         try {
-            const res = await fetch('http://localhost:5000/api/revenue', {
+            const res = await authFetch('/revenue', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...formData,
                     amount: parseFloat(formData.amount)
                 })
             });
+
             const result = await res.json();
 
             if (result.message) {
@@ -64,13 +73,13 @@ const Revenue = () => {
                     amount: '',
                     description: ''
                 });
-                await fetchRevenues();
+                await fetchRevenues(filterClient);
                 setTimeout(() => setSuccessMessage(''), 3000);
             } else {
                 setErrorMessage(result.error || 'Failed to add revenue');
             }
         } catch (err) {
-            setErrorMessage('Network error. Is the backend running?');
+            setErrorMessage('Network error. Please check if backend is running.');
         } finally {
             setLoading(false);
         }
@@ -79,19 +88,13 @@ const Revenue = () => {
     const handleDelete = async (id) => {
         if (!window.confirm('Delete this revenue entry?')) return;
         try {
-            await fetch(`http://localhost:5000/api/revenue/${id}`, { method: 'DELETE' });
-            await fetchRevenues();
-            setSuccessMessage('Revenue deleted');
+            await authFetch(`/revenue/${id}`, { method: 'DELETE' });
+            await fetchRevenues(filterClient);
+            setSuccessMessage('Revenue deleted successfully');
             setTimeout(() => setSuccessMessage(''), 2000);
         } catch (err) {
-            setErrorMessage('Failed to delete');
+            setErrorMessage('Failed to delete revenue');
         }
-    };
-
-    const handleFilterChange = (e) => {
-        const newFilter = e.target.value || 'All';
-        setFilterClient(newFilter);
-        fetchRevenues(newFilter);
     };
 
     const totalRevenue = revenues.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
@@ -99,7 +102,7 @@ const Revenue = () => {
     return (
         <div className="p-8">
             <div className="max-w-3xl mx-auto">
-                {/* Header with Total - matching Expenses style */}
+                {/* Header with Total */}
                 <div className="flex justify-between items-center mb-8">
                     <div>
                         <h1 className="text-4xl font-bold text-gray-900">Revenue</h1>

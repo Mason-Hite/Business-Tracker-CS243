@@ -9,6 +9,13 @@ import jwt from 'jsonwebtoken';
 
 dotenv.config();
 
+// ==================== GROQ AI ====================
+import { Groq } from 'groq-sdk';
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -86,11 +93,11 @@ async function initDB() {
   try {
     if (dbType === 'sqlite') {
       await query(`CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`);
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
 
       await query(`CREATE TABLE IF NOT EXISTS expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,17 +169,32 @@ function authenticateToken(req, res, next) {
 
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  try {
+    const { email, password } = req.body;
 
-  const existing = await query('SELECT id FROM users WHERE email = ?', [email]);
-  if (dbType === 'sqlite' ? existing : existing[0]) {
-    return res.status(400).json({ error: 'User already exists' });
+    console.log("Register attempt:", { email, password }); // TEMP LOG
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    const result = await query('SELECT COUNT(*) as count FROM users WHERE email = ?', [email]);
+    const count = result?.count || 0;
+
+    if (count > 0) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    console.log("Password hash created:", passwordHash); // TEMP LOG
+
+    await query('INSERT INTO users (email, password_hash) VALUES (?, ?)', [email, passwordHash]);
+
+    res.status(201).json({ message: 'Account created successfully' });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ error: 'Registration failed' });
   }
-
-  const hash = await bcrypt.hash(password, 10);
-  await query('INSERT INTO users (email, password_hash) VALUES (?, ?)', [email, hash]);
-  res.status(201).json({ message: 'Registered successfully' });
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -180,36 +202,62 @@ app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({
+        error: 'Email and password are required'
+      });
     }
 
-    const users = await query('SELECT * FROM users WHERE email = ?', [email]);
-    const user = dbType === 'sqlite' ? users : users[0];
+    // Normalize email (very important)
+    const normalizedEmail = email.toLowerCase().trim();
 
-    if (!user || !user.password_hash) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const validPassword = await bcrypt.compare(password, user.password_hash);
-
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      JWT_SECRET,
-      { expiresIn: '7d' }
+    const result = await query(
+      'SELECT id, email, password_hash, name, role FROM users WHERE email = ?',
+      [normalizedEmail]
     );
 
+    const user = Array.isArray(result) ? result[0] : result;
+
+    if (!user || !user.password_hash) {
+      return res.status(401).json({
+        error: 'Invalid email or password'
+      });
+    }
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({
+        error: 'Invalid email or password'
+      });
+    }
+
+    // Create JWT
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role // useful for authorization
+      },
+      JWT_SECRET,
+      {
+        expiresIn: '7d',
+        // issuer: 'yourapp' // optional but recommended
+      }
+    );
+
+    // Return minimal safe user data
     res.json({
-      message: 'Login successful',
       token,
-      user: { id: user.id, email: user.email }
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }
     });
+
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ error: 'Login failed' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -369,7 +417,36 @@ app.post('/api/chat', authenticateToken, async (req, res) => {
   try {
     const { message, history = [] } = req.body;
 
-    const systemPrompt = `You are LandTrack AI. Use the tools to answer questions about expenses, revenue, and profit. Always mention the time period when relevant.`;
+    const systemPrompt = `You are LandTrack AI, a friendly, helpful, and knowledgeable business assistant for landscaping and small business owners.
+
+Your personality:
+- Warm, encouraging, and professional
+- Speak like a helpful friend who understands the trades
+- Use simple, clear language (avoid jargon)
+- Be conversational and positive
+- NEVER MAKE UP NUMBERS OR HALLUCINATE
+
+You have access to real business data through tools:
+- Expenses
+- Revenue
+- Profit calculations
+- Period-based reports (today, yesterday, this week, last week, this month, last month)
+- NEVER MAKE UP NUMBERS OR HALLUCINATE
+
+Core rules:
+1. Always be helpful and encouraging.
+2. When giving numbers, explain them in plain English.
+3. Mention the time period you're referring to (e.g., "This month so far...", "Last week...", "All time...").
+4. If the user asks something you don't have data for, be honest and offer alternatives.
+5. Give actionable suggestions when possible (e.g., "You're spending a lot on fuel — maybe review routes?").
+6. Keep responses concise but friendly (1-3 paragraphs max unless asked for detail).
+
+Examples of good responses:
+- "This month you're doing great! Revenue is $4,850 and expenses are $2,310, giving you a solid profit of $2,540."
+- "No jobs lined up in the calendar right now. Want me to suggest some follow-up ideas with past clients?"
+- "You've spent $680 on Fuel this month. That's higher than usual — anything big going on?"
+
+You are here to help the user run their business better and feel more in control.`;
 
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",

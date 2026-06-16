@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, NavLink } from 'react-router-dom';
+
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Expenses from './pages/Expenses.jsx';
@@ -24,16 +25,20 @@ export default function App() {
     { path: '/calendar', label: 'Calendar', icon: '📅' },
   ];
 
+  // Handle login
   const handleLogin = (newToken) => {
+    localStorage.setItem('token', newToken);
     setToken(newToken);
   };
 
+  // Handle logout
   const handleLogout = () => {
     localStorage.removeItem('token');
     setToken(null);
+    setIsChatOpen(false);
   };
 
-  // Send message with auth token
+  // Send message to AI
   const sendMessage = async () => {
     if (!input.trim() || !token) return;
 
@@ -53,20 +58,27 @@ export default function App() {
       });
 
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply || "Sorry, something went wrong." }]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.reply || "Sorry, something went wrong."
+      }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', content: "Connection error." }]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: "Connection error. Please try again."
+      }]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // If not logged in, show Login page
   if (!token) {
     return <Login onLogin={handleLogin} />;
   }
 
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <div className="flex h-screen bg-gray-50">
         {/* Sidebar */}
         <div className="w-72 bg-white border-r flex flex-col">
@@ -87,7 +99,8 @@ export default function App() {
                   key={item.path}
                   to={item.path}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-medium ${isActive ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-100'}`
+                    `flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-medium transition-colors ${isActive ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-100'
+                    }`
                   }
                 >
                   <span className="text-xl">{item.icon}</span>
@@ -98,20 +111,30 @@ export default function App() {
           </div>
 
           <div className="p-4 border-t">
-            <button onClick={handleLogout} className="w-full text-red-600 text-sm py-2">Logout</button>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-2xl text-sm font-medium transition-colors"
+            >
+              <span>🚪</span>
+              <span>Logout</span>
+            </button>
           </div>
         </div>
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col">
           <div className="h-16 bg-white border-b flex items-center justify-between px-8">
-            <div className="font-semibold">Business Tracker</div>
-            <button onClick={() => setIsChatOpen(!isChatOpen)} className="px-4 py-2 bg-emerald-600 text-white rounded-2xl text-sm">
-              {isChatOpen ? 'Close AI' : 'Ask AI'}
+            <div className="font-semibold text-lg">Business Tracker</div>
+            <button
+              onClick={() => setIsChatOpen(!isChatOpen)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-sm transition-colors"
+            >
+              {isChatOpen ? 'Close AI' : 'Ask LandTrack AI'}
             </button>
           </div>
 
           <div className="flex-1 flex overflow-hidden">
+            {/* Page Content */}
             <div className="flex-1 overflow-auto p-8">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
@@ -119,32 +142,55 @@ export default function App() {
                 <Route path="/revenue" element={<Revenue />} />
                 <Route path="/shopping" element={<ShoppingList />} />
                 <Route path="/calendar" element={<Calendar />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </div>
 
-            {/* Chat Sidebar */}
+            {/* AI Chat Sidebar */}
             {isChatOpen && (
               <div className="w-96 border-l bg-white flex flex-col">
-                <div className="p-4 border-b font-semibold">LandTrack AI</div>
+                <div className="p-4 border-b font-semibold flex items-center justify-between">
+                  <span>LandTrack AI</span>
+                  <button
+                    onClick={() => setIsChatOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 text-xl"
+                  >
+                    ✕
+                  </button>
+                </div>
+
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
                   {messages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                      <div className={`px-4 py-3 rounded-3xl text-sm max-w-[80%] ${msg.role === 'user' ? 'bg-emerald-600 text-white' : 'bg-white border'}`}>
+                      <div className={`px-4 py-3 rounded-3xl text-sm max-w-[80%] ${msg.role === 'user' ? 'bg-emerald-600 text-white' : 'bg-white border'
+                        }`}>
                         {msg.content}
                       </div>
                     </div>
                   ))}
+                  {isLoading && (
+                    <div className="flex">
+                      <div className="px-4 py-3 rounded-3xl text-sm bg-white border">Thinking...</div>
+                    </div>
+                  )}
                 </div>
+
                 <div className="p-4 border-t">
                   <div className="flex gap-2">
                     <input
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                      className="flex-1 border rounded-2xl px-4 py-3 text-sm"
+                      className="flex-1 border rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500"
                       placeholder="Ask about your business..."
                     />
-                    <button onClick={sendMessage} className="px-5 bg-emerald-600 text-white rounded-2xl">Send</button>
+                    <button
+                      onClick={sendMessage}
+                      disabled={isLoading || !input.trim()}
+                      className="px-6 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl"
+                    >
+                      Send
+                    </button>
                   </div>
                 </div>
               </div>

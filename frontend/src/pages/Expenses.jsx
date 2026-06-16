@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { authFetch } from '../utils/api';
 
 export default function Expenses() {
     const [formData, setFormData] = useState({
@@ -17,10 +18,10 @@ export default function Expenses() {
     const fetchExpenses = async (category = '') => {
         try {
             const url = category
-                ? `http://localhost:5000/api/expenses?category=${category}`
-                : 'http://localhost:5000/api/expenses';
+                ? `/expenses?category=${category}`
+                : '/expenses';
 
-            const response = await fetch(url);
+            const response = await authFetch(url);
             const data = await response.json();
             setExpenses(data);
         } catch (error) {
@@ -45,9 +46,8 @@ export default function Expenses() {
         setMessage({ type: '', text: '' });
 
         try {
-            const response = await fetch('http://localhost:5000/api/expenses', {
+            const response = await authFetch('/expenses', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     date: formData.date,
                     category: formData.category,
@@ -70,7 +70,7 @@ export default function Expenses() {
                 setMessage({ type: 'error', text: error.error || 'Failed to add expense' });
             }
         } catch (error) {
-            setMessage({ type: 'error', text: 'Network error' });
+            setMessage({ type: 'error', text: error.message || 'Network error' });
         } finally {
             setLoading(false);
         }
@@ -80,10 +80,7 @@ export default function Expenses() {
         if (!confirm('Delete this expense?')) return;
 
         try {
-            const response = await fetch(`http://localhost:5000/api/expenses/${id}`, {
-                method: 'DELETE',
-            });
-
+            const response = await authFetch(`/expenses/${id}`, { method: 'DELETE' });
             if (response.ok) {
                 fetchExpenses(filterCategory);
             } else {
