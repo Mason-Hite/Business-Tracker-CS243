@@ -202,56 +202,38 @@ app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
-        error: 'Email and password are required'
-      });
+      return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Normalize email (very important)
     const normalizedEmail = email.toLowerCase().trim();
 
     const result = await query(
-      'SELECT id, email, password_hash, name, role FROM users WHERE email = ?',
+      'SELECT id, email, password_hash FROM users WHERE email = ?',
       [normalizedEmail]
     );
 
     const user = Array.isArray(result) ? result[0] : result;
 
     if (!user || !user.password_hash) {
-      return res.status(401).json({
-        error: 'Invalid email or password'
-      });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      return res.status(401).json({
-        error: 'Invalid email or password'
-      });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Create JWT
     const token = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role // useful for authorization
-      },
+      { id: user.id, email: user.email },
       JWT_SECRET,
-      {
-        expiresIn: '7d',
-        // issuer: 'yourapp' // optional but recommended
-      }
+      { expiresIn: '7d' }
     );
 
-    // Return minimal safe user data
     res.json({
       token,
       user: {
         id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
+        email: user.email
       }
     });
 
