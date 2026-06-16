@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-do
 import Dashboard from './pages/Dashboard.jsx';
 import Clients from './pages/Clients.jsx';
 import Expenses from './pages/Expenses.jsx';
+import Revenue from './pages/Revenue.jsx';     // ← Added
 import ShoppingList from './pages/ShoppingList.jsx';
 import Calendar from './pages/Calendar.jsx';
 
@@ -18,6 +19,7 @@ export default function App() {
     { path: '/', label: 'Dashboard', icon: '📊' },
     { path: '/clients', label: 'Clients', icon: '👥' },
     { path: '/expenses', label: 'Expenses', icon: '💸' },
+    { path: '/revenue', label: 'Revenue', icon: '💰' },        // ← Added
     { path: '/shopping', label: 'Shopping List', icon: '🛒' },
     { path: '/calendar', label: 'Calendar', icon: '📅' },
   ];
@@ -121,6 +123,7 @@ export default function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/clients" element={<Clients />} />
                 <Route path="/expenses" element={<Expenses />} />
+                <Route path="/revenue" element={<Revenue />} />        {/* ← Added */}
                 <Route path="/shopping" element={<ShoppingList />} />
                 <Route path="/calendar" element={<Calendar />} />
               </Routes>
@@ -141,8 +144,8 @@ export default function App() {
                   {messages.map((msg, index) => (
                     <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[80%] px-4 py-3 rounded-3xl text-sm ${msg.role === 'user'
-                          ? 'bg-emerald-600 text-white rounded-br-none'
-                          : 'bg-white border border-gray-200 rounded-bl-none'
+                        ? 'bg-emerald-600 text-white rounded-br-none'
+                        : 'bg-white border border-gray-200 rounded-bl-none'
                         }`}>
                         {msg.content}
                       </div>
